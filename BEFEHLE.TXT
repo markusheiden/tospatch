@@ -425,7 +425,7 @@ mit der PMMU problemlos.
 
 
 >>>  Wenn   Ihr   neue  Patches  einbaut,  mailt  sie  mir  bitte !!!  <<<
->>>  email: markus@markusheiden.de                        <<<
+>>>  email: markus@markusheiden.de                                     <<<
 
    Viel Spaß wünscht
      Markus Heiden
