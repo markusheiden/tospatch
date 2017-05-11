@@ -80,11 +80,8 @@ Welche Vorteile bringt denn nun TosPatch?
 
 Bei Problemen kann man anfragen:
 
-Einfach  eine  öffentliche  Mail  in  die  D-Box oder in die Turbo-Tron
-setzen.
+Mail an markus@markusheiden.de
 
-D-Box      : (040) 720 98 43  rep.  (040) 720 98 43
-Turbo-Tron : (040) 890 11 62  rep.  (040) 890 11 62
 
 Besonders gelungene Patches sind natürlich auch gesucht...
 

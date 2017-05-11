@@ -102,12 +102,6 @@ Bei Problemen kann man anfragen:
 Mail an markus@markusheiden.de
 
 
-oder einfach eine öffentliche Message in folgenden Box setzen:
-
-D-Box Hamburg (040)72910042 (NUR eigenes Tauschsystem: DTAUSCH)
-
-
-
 Besonders gelungene Patches sind natürlich auch gesucht...
 
 Also: Alle  Modifikationen  an  den  Sourcen und neue Patches BITTE an

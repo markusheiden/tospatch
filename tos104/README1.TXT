@@ -101,11 +101,6 @@ Bei Problemen kann man anfragen:
 
 Mail an markus@markusheiden.de
 
-oder  einfach  eine  öffentliche  Message  in eine der folgenden Boxen
-setzen:
-
-D-Box      : (040) 72910042
-Turbo-Tron : (040) 8901162
 
 Besonders gelungene Patches sind natürlich auch gesucht...
 
