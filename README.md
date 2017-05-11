@@ -12,6 +12,14 @@ kann man das Kommandozeilentool [recode](https://github.com/pinard/Recode) verwe
 recode UTF-8..AtariST *.TXT *.FIL
 ```
 
+## Versionen
+
+* TOSPATCH.TTP V2.9.8 vom 11.7.1999
+* TosPatch für TOS 1.04 2.1 beta
+* TosPatch für TOS 2.06 4.0 beta
+* TosPatch für TOS 3.06 2.0
+* TosPatch für TOS 4.04 2.0 beta 2
+
 ## Dokumentation
 
 * [Anleitung TOSPATCH.TTP](BEFEHLE.TXT)
