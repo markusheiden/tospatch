@@ -99,7 +99,7 @@ Welche Vorteile bringt denn nun TosPatch?
 
 Bei Problemen kann man anfragen:
 
-Mail an Markus_Heiden@public.uni-hamburg.de
+Mail an markus@markusheiden.de
 
 
 Besonders gelungene Patches sind natürlich auch gesucht...

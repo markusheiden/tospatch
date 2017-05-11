@@ -99,7 +99,7 @@ Welche Vorteile bringt denn nun TosPatch?
 
 Bei Problemen kann man anfragen:
 
-Mail an Markus_Heiden@public.uni-hamburg.de
+Mail an markus@markusheiden.de
 
 oder  einfach  eine  öffentliche  Message  in eine der folgenden Boxen
 setzen:
