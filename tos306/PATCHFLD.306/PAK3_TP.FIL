@@ -1,0 +1,1520 @@
+;*******************************************************************************
+;*
+;* Patches für TOS 3.06 auf PAK/3 mit 68020 und 68030 Version 2
+;*
+;* ACHTUNG!!
+;*
+;* Es gibt einige Kollisionen zwischen den Patches aus diesem File und
+;* denen aus dem Patchfile von TOSPATCH, welche aber in den Patches vermerkt
+;* sind.
+;*
+;* Beachtet selbst, wo Kollisionen sind!!!!
+;*
+;* History:
+;*
+;* 11.11.93  Unterscheidung auf den Prozessor (020 vs. 030) entfernt, da es
+;*           wie gewünscht funktioniert :-)
+;*
+;* 20.11.93  Endlich: Farbe funkioniert. Der Fehler lag darin, daß TT-Low
+;*           als Default-Auflösung angenommen wurde. Jetzt mit ST-Low als
+;*           Default geht es.
+;*           Evtl. könnte man noch ST-Mid als Default verwenden, müßte dann
+;*           aber zumindest die Logo-Ausgabe anpassen (kopieren in die
+;*           Planes). Ich denke, es sollte bei ST-Low bleiben, da sonst
+;*           einiger Daddel-Kram evtl. nicht mitmacht.
+;*           Der Video-Reset läuft damit jetzt auch :-)
+;*
+;* 21.11.93  RAM-Initialisierung aus TOS 2.06 übernommen, vermutlich kamen
+;*           die Patches aus der c't nur mit 4 MB-Bestückung zurecht.
+;*           Power-Ons funktionieren jetzt auch: DE-SYNC darf nicht
+;*           abgewartet werden (Timer läuft noch nicht?). In TOS 2.06
+;*           funktioniert es, hier ging es nicht.
+;*
+;* 22.11.93  Kein Wunder, daß der DE-SYNC bei Power-On nicht lief:
+;*           Es war noch kein Stack eingerichtet, also kann auch kein BSR
+;*           durchgeführt werden.
+;*
+;* 24.11.93  Static-RAMs per PMMU vor Schreibzugriff schützen.
+;*           Spiegelkontrolle im TT-RAM, ob das TT-RAM mehrfach aufeinander
+;*           folgt.
+;*
+;* 25.11.93  Au Mann: die c't-Patches konnten ja nicht mal Bomben ausgeben :-(
+;*           Bombenroutine an Größe des Bild-Speichers angepaßt. Die Bomben
+;*           wurden 75kB über Bildschirmstart ausgegeben -> Bus-Error!
+;*
+;* 27.11.93  Fast-RAM-Spiegeltest korrigiert.
+;*
+;* 01.12.93  nochmal ein paar Bytes aus TT-RAM-Test rausgeholt.
+;*
+;* 03.12.93  Jetzt läuft es auch auf der 020 im RAM mit Warmstart.
+;*           Ich sach nur: PMMU-Befehle sind auf 020 ILLEGAL!!
+;*           Nix F-TRAP!!
+;*
+;* später:   Also, ein PMMU-Befehl ist latürnich ein F-Opcode. Damit sollte
+;*           ein PMMU-Befehl in den F-Trap laufen. Wenn jedoch eine FPU
+;*           vorhanden ist, so wird der F-Befehl an die FPU gereicht, die
+;*           diesen jedoch abwehrt und einen ILLEGAL auslöst. Daher müssen
+;*           die PMMU-Befehle mit ILLEGAL (020 mit FPU) und F-Trap
+;*           (020 ohne FPU) gefangen werden.
+;*
+;* 03.12.93  Auch bei 020 Desktop-Eintrag 'Cache' statt 'Blitter'.
+;*
+;* 09.12.93  Und wieder ein Problem mit der Spiegelkennung im TT-RAM: es
+;*           wurden 128kB zu wenig erkannt, weil beim Spiegelcheck auf die
+;*           erste Adresse oberhalb des RAMs zugegriffen wurde.
+;*
+;*           Bomben können auf Grafikkarten/Screenerweiterungen ausgegeben
+;*           werden.
+;*           Damit werden die Bomben sauber ausgegeben, vorausgesetzt, die
+;*           LineA Variablen wurden durch den Absturz nicht zerstört.
+;*           Kann per .GrafikBombs an/abgeschaltet werden, ich bevorzuge die
+;*           Bomben auf dem ST-Screen, da sie dort stehenbleiben und ich sie
+;*           in Ruhe genießen und zählen kann.
+;*           Auf Byte-Plane-Karten (z.B. MegaVision) werden die Bomben in
+;*           Farbe nicht korrekt ausgegeben und sind nur über die Länge des
+;*           Farbstreifens erkennbar.
+;*
+;* 16.12.93  BCONMAP.mapsize bei ST auf 1, bei MSTE auf 3 gesetzt
+;*           -> ST hat keine weiteren seriellen
+;*           -> keine Bomben mehr beim Verlassen von CoNnect
+;*           Leider dafür die Routinen für TT-MFP entfernt.
+;*
+;* 18.12.93  Die Power-On-Hänger sind offensichtlich beseitigt. Ohne
+;*           Initialisierung der MCU kann bei einigen Rechnern der Speicher
+;*           noch nicht benutzt werden.
+;*
+;* 17.01.94  HasTTMfp eingebaut.
+;*           Dadurch müssen leider auch die SCC-Routinen in der Bconmap wieder
+;*           aktiviert werden!
+;*
+;* 23.01.94  Anpassung für MegaSTE.
+;*           Fehler bei INSTBMAP gefunden: versehentlich 'MOVE A1,A2'
+;*           geschrieben.
+;*
+;* 24.01.94  Den Patch für IDE-Boot eingefügt.
+;*           Ob er funktioniert, wurde mir bisher nicht mitgeteilt.
+;*
+;* 27.06.94  Delay bei Zugriff auf RTC, hoffentlich verschwinden damit
+;*           die Probs.
+;*
+;* 04.07.94  Erster Versuch die Floppy-Probleme bei 50 MHz in den Griff zu
+;*           bekommen.
+;*
+;* 14.10.94  Farbsetzroutinen vq_color und vs_color ersetzt.
+;*           Erste MCU-Initialisierung  wird ausgelassen, wenn das TOS ins
+;*           ST-Ram reloziert wird. (Ginge sonst bei Bestückungen ungleich
+;*           4MB ST-Ram schief).
+;*
+;* 04.11.94  Wenn man die erweiterten BIOS-Routinen rauskickt, sollte man sie
+;*           wenigstens an den benutzten Stellen ersetzen (v_opnwk).
+;*
+;* 10.12.94  Weiter Änderungen in den RTC-Routinen. Irgendwann muß es doch
+;*           klappen :-(
+;*
+;* ??.??.96  Erste MCU-Initialisierung wird übersprungen, falls das TOS im
+;*           ST-Ram liegt. Würde bei Bestückungen <> 4MB sonst schiefgehen.
+;*
+;* 18.12.97  Bildschirmsynchronisation beim Umschalten des Shifters etwas
+;*           timinigunabhängiger gemacht. Falls es damit Probleme gibt:
+;*           .ALT_DE auf Null setzen (s.u.).
+
+;*******************************************************************************
+;* MH:
+;* Ein paar Korrekturen:
+
+!1F2
+
+;*******************************************************************************
+;*
+;* Stack einrichten, um die Prozessorunabhängigkeiten in den Griff zu bekommen.
+;* Außerdem muß die MCU initialisiert werden, damit der Speicher überhaupt
+;* benutzbar ist. Falls das TOS im ST-RAM ist, wird das jedoch unterlassen, da
+;* es nur mit 4MB-Rechner funktionieren würde und das RAM sowieso initialisiert
+;* ist.
+;*
+;* Falls wir in Wirklichkeit einen Warmstart machen, so führt das zu keinen
+;* Problemen, da kurz später bei gültigen memvalid, memval2 und memval3 die
+;* MCU noch einmal mit dem Wert aus memcntrl ($424) gefüttert wird.
+;*
+;* Dazu den Zugriff auf DMA entfernt und zuerst den Reset gemacht.
+;* [ALL]
+
+34
+~ $4E,70                            ;RESET
+_IF .RELOCADR < E00000
+ ~ $4E,71,4E,71,4E,71               ;NOP's
+_ELSE
+ ~ $11,FC,00,0A,80,01               ;MOVE.B    #$A,$FFFF8001.W
+_ENDIF
+~ $4F,F9,00,00,07,FC                ;LEA       $07FC,A7
+
+;*******************************************************************************
+;* SE: (14.10.93)
+;* Prozessorunabhängiges 3.06.
+;* Initialisierung der 68030 MMU nach Reset.
+;* [FRG/USA]
+
+_SWITCH .NATION
+_CASE .FRG: .NUL_TABLE = E36014
+_CASE .USA: .NUL_TABLE = E35FE4
+_DEFAULT: _ERROR "Nation wird nicht unterstützt"
+_ENDSWITCH
+
+68
+~ $41,FA,00,1C                      ;LEA       $1C(PC),A0           L0000
+~ $21,C8,00,10                      ;MOVE.L    A0,$10.W
+~ $21,C8,00,2C                      ;MOVE.L    A0,$2C.W
+~ $20,7C,.NUL_TABLE.L               ;MOVEA.L   #.NUL_TABLE,A0
+~ $F0,10,40,00                      ;PMOVE     (A0),TC
+~ $F0,10,08,00                      ;PMOVE     (A0),TT0
+~ $F0,10,0C,00                      ;PMOVE     (A0),TT1
+
+;*******************************************************************************
+;* c't 9/92:
+;* SCU: General-Purpose-Register checken, ob es ein Power-On war.
+;* Da wir das Register nicht haben, müssen wir immer die Power-On-Checks
+;* durchführen.
+;* [ALL]
+
+86 $4E,71,4E,71,4E,71,4E,71
+
+;*******************************************************************************
+;* c't 9/92:
+;* Video-RAM nur 32 statt 150 kByte groß.
+;* [ALL]
+
+2A2 $00,00,80,00
+2A8 $07,FF
+
+;*******************************************************************************
+;* SE: (29.10.93)
+;* Cookie-Test der FPU präzisiert, Code von Dirk EOS Katzschke @ H.
+;* [ALL]
+
+440
+~ $20,FC,5F,46,50,55                ;MOVE.L    #$5F465055,(A0)+    ;(#"_FPU")
+~ $72,00                            ;MOVEQ     #0,D1
+~ $22,79,00,00,00,2C                ;MOVEA.L   $2C.L,A1
+~ $45,FA,00,28                      ;LEA       $28(PC),A2           L0003
+~ $23,CA,00,00,00,2C                ;MOVE.L    A2,$2C.L
+~ $F3,27                            ;FSAVE     -(A7)
+~ $10,2F,00,01                      ;MOVE.B    1(A7),D0
+~ $0C,00,00,18                      ;CMPI.B    #$18,D0
+~ $67,10                            ;BEQ.S     $10(PC)              L0001
+~ $0C,00,00,38                      ;CMPI.B    #$38,D0
+~ $67,08                            ;BEQ.S     8(PC)                L0000
+~ $0C,00,00,40                      ;CMPI.B    #$40,D0
+~ $66,06                            ;BNE.S     6(PC)                L0002
+~ $54,41                            ;ADDQ.W    #2,D1
+~ $54,41                      ;L0000:ADDQ.W    #2,D1
+~ $54,41                      ;L0001:ADDQ.W    #2,D1
+~ $54,41                      ;L0002:ADDQ.W    #2,D1
+~ $48,41                      ;L0003:SWAP      D1
+~ $20,C1                            ;MOVE.L    D1,(A0)+
+~ $23,C9,00,00,00,2C                ;MOVE.L    A1,$2C.L
+~ $60,12                            ;BRA.S     $12(PC)              L0004
+
+;*******************************************************************************
+;* c't 9/92 / SE (20.11.93):
+;* Monochrom-Mode.
+;* [ALL]
+
+5A4 $72,00          ;Default-Farb-Auflösung = 1 (ST-LOW)
+5AE $72,02          ;MOVEQ #2,D1
+
+;*******************************************************************************
+;* SE: (21.09.93)
+;* Atari-Logo in korrektem Zeilenabstand ausgeben.
+;* [ALL]
+
+77E $00,70     ;Zeilenlänge-Logobreite auf Zieladresse addieren (ST-LOW)
+798 $00,44     ;Zeilenlänge-Logobreite auf Zieladresse addieren (ST-HIGH)
+
+;*******************************************************************************
+;* SE: (04.10.93)
+;* Wegen der Static-RAMs erhöhtes Risiko für zerschossenes TOS
+;* daher nach der Warnung eine Endlosschleife.
+;* [ALL]
+
+_IF .StaticRAM OR (.RELOCADR <> .BASE)
+ 882 $60,FE                   ;L0000:BRA.S     L0000
+_ENDIF
+
+;*******************************************************************************
+;* c't 9/92:
+;* ... nochmal Video-Mode
+;* [ALL]
+
+888  $00,02
+
+; Getrez()
+116A $82,60
+116E $00,03
+
+; Setscreen()
+11A8 $82,60
+11B4 $82,60
+
+;* [FRG/USA]
+
+_SWITCH .NATION
+_CASE .FRG:
+ ;6744 $00,02   ;War nicht richtig und ist nicht mehr nötig (neue Routine s.u.).
+
+ ;6974 $00,02   ;War nicht richtig. Besser:
+ 6974 $0003.W
+ 6978 $4E71.W
+
+ 6CBC $0002.W
+ 6DB8 $60,00,00,C8
+ 6E70 $0002.W
+
+ ;6EB6 $82,60   ;Ist nicht mehr nötig (neue Routine s.u.).
+ ;6EBC $00,03   ; - " -
+ ;6EF0 $82,60   ; - " -
+ ;6FB2 $82,60   ; - " -
+ ;706A $82,60   ; - " -
+ ;7102 $82,60   ; - " -
+ ;7176 $82,60   ; - " -
+_CASE .USA:
+ ;66EA $00,02   ;War nicht richtig und ist nicht mehr nötig (neue Routine s.u.).
+
+ ;691A $00,02   ;War nicht richtig. Besser:
+ 691A $0003.W
+ 691E $4E71.W
+
+ 6C62 $0002.W
+ 6D5E $60,00,00,C8
+ 6E16 $0002.W
+
+ ;6E5C $82,60   ;Ist nicht mehr nötig (neue Routine s.u.).
+ ;6E62 $00,03   ; - " -
+ ;6E96 $82,60   ; - " -
+ ;6F58 $82,60   ; - " -
+ ;7010 $82,60   ; - " -
+ ;70A8 $82,60   ; - " -
+ ;711C $82,60   ; - " -
+_DEFAULT: _ERROR "Nation wird nicht unterstützt"
+_ENDSWITCH
+
+;*******************************************************************************
+;* c't 9/92 / SE (21.09.93):
+;* Bootpreference nicht aus SCU holen, sondern direkt in D0 schreiben.
+;* (korrigiert zu MOVEQ #$80,D0)
+;* [ALL]
+
+B14
+~ $4E,71            ;NOP                ;statt Zugriff auf SCU
+~ $70,80            ;MOVEQ     #$80,D0
+
+;*******************************************************************************
+;* c't 9/92:
+;* Video-Mode-Erkennung bei Monitor-Change.
+;* [ALL]
+
+CAC $10,3C,00,00                    ;MOVE.B    #0,D0
+
+CC8 $10,3C,00,00                    ;MOVE.B    #0,D0
+
+CD8 $10,38,82,60              ;L0077:MOVE.B    $FFFF8260.w,D0
+~   $C0,3C,00,03                    ;AND.B     #3,D0
+~   $B0,3C,00,02                    ;CMP.B     #2,D0
+
+CF0 $10,3C,00,02                    ;MOVE.B    #2,D0
+
+D0C $12,38,82,60                    ;MOVE.B    $FFFF8260.w,D1
+
+D16 $11,C1,82,60                    ;MOVE.B    D1,$FFFF8260.W
+
+;*******************************************************************************
+;* c't 9/92:
+;* Anzahl der XBIOS-Funktionen reduzieren.
+;* [ALL]
+
+E2C $00,41
+
+;*******************************************************************************
+;* SE: (25.11.93)
+;* Bombenausgabe:
+;* halben Bildschirmspeicher auf Bildadresse addieren
+;* -> Bomben auf halber Höhe.
+;* [ALL]
+
+;129E $D1,FC,00,00,3E,80             ;ADDA.L    #16000,A0
+; Banane:
+; Viel schöner ist es, den Compare auf die Auflösung anzupassen, der
+; entscheidet, wieviel die Adresse gerechnet wird
+;129A $00,02                         ;CMP #2,D7 statt CMP #6,D7
+;129C $6F                            ;BLE statt BLT
+
+;*******************************************************************************
+;* SE: (09.12.93)
+;* Bombenausgabe auf Grafikkarten/Grafikerweiterungen u.ä.
+;*
+;* Schwierigkeiten:
+;* Auf Grafikkarten ohne Bitplanes (zB MegaVision300) werden die Bomben in
+;* Farbe nicht korrekt ausgegeben.
+;* [ALL]
+
+_IF .Grafik_Bombs
+ 1272
+ ~ $45,F8,3A,1A                     ;LEA       $3A1A.W,A2
+ ~ $3E,12                           ;MOVE.W    (A2),D7
+ ~ $53,47                           ;SUBQ.W    #1,D7
+ ~ $78,00                           ;MOVEQ     #0,D4
+ ~ $38,2A,FF,FE                     ;MOVE.W    -2(A2),D4
+ ~ $20,78,04,4E                     ;MOVEA.L   $044E.W,A0
+ ~ $30,2A,FF,FC                     ;MOVE.W    -4(A2),D0
+ ~ $E2,48                           ;LSR.W     #1,D0
+ ~ $C0,C4                           ;MULU      D4,D0
+ ~ $D1,C0                           ;ADDA.L    D0,A0
+ ~ $43,FA,02,66                     ;LEA       $266(PC),A1          L0003
+ ~ $7C,0F                           ;MOVEQ     #$F,D6
+ ~ $34,01                     ;L0000:MOVE.W    D1,D2
+ ~ $24,48                           ;MOVEA.L   A0,A2
+ ~ $3A,07                     ;L0001:MOVE.W    D7,D5
+ ~ $34,D1                     ;L0002:MOVE.W    (A1),(A2)+
+ ~ $51,CD,FF,FC                     ;DBF       D5,-4(PC)            L0002
+ ~ $51,CA,FF,F6                     ;DBF       D2,-$A(PC)           L0001
+ ~ $54,49                           ;ADDQ.W    #2,A1
+ ~ $D0,C4                           ;ADDA.W    D4,A0
+ ~ $51,CE,FF,EA                     ;DBF       D6,-$16(PC)          L0000
+ ~ $4E,75                           ;RTS
+_ENDIF
+
+;*******************************************************************************
+;* c't 9/92:
+;* Blitter wird vom TOS nicht erkannt.
+;* [ALL]
+
+_IF .Blitter = 0
+ 15DC $70,00,4E,75
+_ENDIF
+
+;*******************************************************************************
+;* SE: (13.10.93)
+;* Delay-Routine:
+;* Zeitmessung von Timer C im TT-MFP auf Timer C im ST-MFP verlegt.
+;* Zur Messung wird Polling von TCDR verwendet (Auflösung 26 usec).
+;*
+;* Nicht nötig, wenn ein TT-MFP existiert.
+;* [ALL]
+
+_IF .HasTTMfp = 0
+ 162E
+ ~ $48,E7,C0,80                     ;MOVEM.L   A0/D0-D1,-(A7)
+ ~ $72,00                           ;MOVEQ     #0,D1
+ ~ $12,00                           ;MOVE.B    D0,D1
+ ~ $66,04                           ;BNE.S     4(PC)                L0000
+ ~ $32,3C,01,00                     ;MOVE.W    #$100,D1
+ ~ $E0,48                     ;L0000:LSR.W     #8,D0
+ ~ $02,40,00,07                     ;ANDI.W    #7,D0
+ ~ $10,3B,00,1E                     ;MOVE.B    $1E(PC,D0.W),D0      L0003
+ ~ $C2,C0                           ;MULU      D0,D1
+ ~ $E8,89                           ;LSR.L     #4,D1
+ ~ $54,81                           ;ADDQ.L    #2,D1
+ ~ $41,F9,FF,FF,FA,23               ;LEA       $FFFFFA23.L,A0
+ ~ $10,10                     ;L0001:MOVE.B    (A0),D0
+ ~ $B0,10                     ;L0002:CMP.B     (A0),D0
+ ~ $67,FC                           ;BEQ.S     -4(PC)               L0002
+ ~ $51,C9,FF,F8                     ;DBF       D1,-8(PC)            L0001
+ ~ $4C,DF,01,03                     ;MOVEM.L   (A7)+,A0/D0-D1
+ ~ $4E,75                           ;RTS
+ ~ $00                        ;L0003:DC.B      0
+ ~ $01                              ;DC.B      1
+ ~ $03                              ;DC.B      3
+ ~ $04                              ;DC.B      4
+ ~ $0D                              ;DC.B      13
+ ~ $10                              ;DC.B      16
+ ~ $19                              ;DC.B      25
+ ~ $32                              ;DC.B      50
+_ENDIF
+
+;*******************************************************************************
+;* SE: (29.10.93)
+;* Initialisierung der MMU.
+;* Das gleiche prozessorunabhängig:
+;* [FRG/USA]
+
+_SWITCH .NATION
+_CASE .FRG: .INIT_TABLE = E36520
+_CASE .USA: .INIT_TABLE = E364F0
+_DEFAULT: _ERROR "Nation wird nicht unterstützt"
+_ENDSWITCH
+
+16EC
+~ $41,FA,00,28                      ;LEA       $28(PC),A0           L0000
+~ $21,C8,00,10                      ;MOVE.L    A0,$10.W
+~ $21,C8,00,2C                      ;MOVE.L    A0,$2C.W
+~ $20,4F                            ;MOVEA.L   A7,A0
+~ $43,F9,.INIT_TABLE.L              ;LEA       .INIT_TABLE,A1
+~ $F0,11,4C,00                      ;PMOVE     (A1),CRP
+~ $F0,29,40,00,00,08                ;PMOVE     8(A1),TC
+~ $F0,29,08,00,00,0C                ;PMOVE     $C(A1),TT0
+~ $F0,29,0C,00,00,10                ;PMOVE     $10(A1),TT1
+~ $2E,48                      ;L0000:MOVEA.L   A0,A7
+~ $4E,75                            ;RTS
+
+;*******************************************************************************
+;* Bei den entfernten XBIOS-Funktionen ist reichlich Platz für Änderungen:
+;*
+;* 1756 - 186A
+;*******************************************************************************
+
+;*******************************************************************************
+;*
+;* Einen Teil der Initialisierung des Shifters verschoben.
+;*
+;* 60 Bytes für diesen Patch reserviert.
+;* [ALL]
+
+1756
+~ $4E,71                            ;NOP ;Zum abstützen des Adress-Counters.
+.VDOSkip1:
+~ $61,00,00,14                      ;BSR       $14(PC)              L0000
+~ $11,FC,00,02,82,0A                ;MOVE.B    #2,$FFFF820A.W
+~ $4E,75                            ;RTS
+.VDOSkip2:
+~ $61,00,00,08                      ;BSR       8(PC)                L0000
+~ $11,C1,82,60                      ;MOVE.B    D1,$FFFF8260.W
+~ $4E,75                            ;RTS
+
+_IF !NOT! .Alt_Sync
+ ~ $41,F8,FA,21               ;L0000:LEA       $FFFFFA21.W,A0
+ ~ $43,F8,FA,1B                     ;LEA       $FFFFFA1B.W,A1
+ ~ $08,B8,00,00,FA,07               ;BCLR      #0,$FFFFFA07.W
+ ~ $78,01                           ;MOVEQ     #1,D4
+ ~ $42,11                           ;CLR.B     (A1)
+ ~ $10,BC,00,F0                     ;MOVE.B    #$F0,(A0)
+ ~ $12,BC,00,08                     ;MOVE.B    #8,(A1)
+ ~ $B8,10                     ;L0001:CMP.B     (A0),D4
+ ~ $66,FC                           ;BNE.S     -4(PC)               L0001
+ ~ $18,10                     ;L0002:MOVE.B    (A0),D4
+ ~ $36,3C,02,67                     ;MOVE.W    #$0267,D3
+ ~ $B8,10                     ;L0003:CMP.B     (A0),D4
+ ~ $66,F6                           ;BNE.S     -$A(PC)              L0002
+ ~ $51,CB,FF,FA                     ;DBF       D3,-6(PC)            L0003
+ ~ $12,BC,00,10                     ;MOVE.B    #$10,(A1)
+ ~ $4E,75                           ;RTS
+_ELSE
+ ~ $16,38,82,01               ;L0000:MOVE.B    $FFFF8201.S,D3
+ ~ $18,38,82,03                     ;MOVE.B    $FFFF8203.S,D4
+ ~ $41,F8,82,05                     ;LEA       $FFFF8205.S,A0
+ ~ $43,F8,82,07                     ;LEA       $FFFF8207.S,A1
+ ~ $B6,10                     ;L0001:CMP.B     (A0),D3
+ ~ $66,04                           ;BNE.S     4(PC)                L0002
+ ~ $B8,11                           ;CMP.B     (A1),D4
+ ~ $67,F8                           ;BEQ.S     -8(PC)               L0001
+ ~ $B6,10                     ;L0002:CMP.B     (A0),D3
+ ~ $66,FC                           ;BNE.S     -4(PC)               L0002
+ ~ $B8,11                           ;CMP.B     (A1),D4
+ ~ $66,F8                           ;BNE.S     -8(PC)               L0002
+ ~ $4E,75                           ;RTS
+_ENDIF
+
+;*******************************************************************************
+;* Initialisierung des DMA-Sound.
+;* [ALL]
+
+.InitDMASound:
+~ $2C,4F                            ;MOVEA.L   A7,A6
+~ $41,FA,00,38                      ;LEA       $38(PC),A0           L0004
+~ $21,C8,00,08                      ;MOVE.L    A0,8.W
+~ $42,78,89,00                      ;CLR.W     $FFFF8900.W
+~ $50,F9,00,00,0A,12                ;ST        $0A12.L
+~ $41,FA,00,08                      ;LEA       8(PC),A0             L0000
+~ $31,D8,89,24                      ;MOVE.W    (A0)+,$FFFF8924.W
+~ $60,1A                            ;BRA.S     $1A(PC)              L0003
+~ $0F,FE,09,D1,0A,A9,0A,29    ;L0000:DC.B      $0F,$FE,$09,$D1,$0A,$A9,$0A,$29
+~ $09,0D,08,8D,08,03,00,00          ;DC.B      $09,$0D,$08,$8D,$08,$03,$00,$00
+~ $31,C0,89,22                ;L0001:MOVE.W    D0,$FFFF8922.W
+~ $4A,78,89,22                ;L0002:TST.W     $FFFF8922.W
+~ $66,FA                            ;BNE.S     -6(PC)               L0002
+~ $30,18                      ;L0003:MOVE.W    (A0)+,D0
+~ $66,F2                            ;BNE.S     -$E(PC)              L0001
+~ $2E,4E                      ;L0004:MOVEA.L   A6,A7
+~ $11,FC,00,5A,82,0D                ;MOVE.B    #$5A,$FFFF820D.W
+~ $4A,38,82,03                      ;TST.B     $FFFF8203.W
+~ $10,38,82,0D                      ;MOVE.B    $FFFF820D.W,D0
+~ $B0,3C,00,5A                      ;CMP.B     #$5A,D0
+~ $66,0C                            ;BNE.S     $C(PC)               L0005
+~ $42,38,82,0D                      ;CLR.B     $FFFF820D.W
+~ $4A,78,82,40                      ;TST.W     $FFFF8240.W
+~ $4A,38,82,0D                      ;TST.B     $FFFF820D.W
+~ $56,F9,00,00,0A,13          ;L0005:SNE       $0A13.L
+~ $4E,75                            ;RTS
+
+;*******************************************************************************
+;* Cookie-Check _VDO und _MCU aus TOS 2.06.
+;* Hope it works, bisher nicht getestet.
+;* [ALL]
+
+.MCHTest:
+~ $20,FC,5F,56,44,4F                ;MOVE.L    #$5F56444F,(A0)+    ;(#"_VDO")
+~ $4A,38,0A,13                      ;TST.B     $0A13.W
+~ $67,06                            ;BEQ.S     6(PC)                L0000
+~ $42,98                            ;CLR.L     (A0)+
+~ $42,80                            ;CLR.L     D0
+~ $60,40                            ;BRA.S     $40(PC)              L0003
+~ $20,FC,00,01,00,00          ;L0000:MOVE.L    #$00010000,(A0)+
+~ $20,3C,00,01,00,00                ;MOVE.L    #$00010000,D0
+~ $22,78,00,08                      ;MOVEA.L   8.W,A1
+~ $45,FA,00,12                      ;LEA       $12(PC),A2           L0001
+~ $21,CA,00,08                      ;MOVE.L    A2,8.W
+~ $24,4F                            ;MOVEA.L   A7,A2
+~ $4A,38,8E,09                      ;TST.B     $FFFF8E09.W
+~ $30,3C,00,10                      ;MOVE.W    #$10,D0
+~ $60,16                            ;BRA.S     $16(PC)              L0002
+~ $42,40                      ;L0001:CLR.W     D0
+~ $2E,4A                            ;MOVEA.L   A2,A7
+~ $47,FA,00,10                      ;LEA       $10(PC),A3           L0002
+~ $21,CB,00,08                      ;MOVE.L    A3,8.W
+~ $4A,39,FF,F0,00,39                ;TST.B     $FFF00039.L
+~ $30,3C,00,08                      ;MOVE.W    #8,D0
+~ $21,C9,00,08                ;L0002:MOVE.L    A1,8.W
+~ $2E,4A                            ;MOVEA.L   A2,A7
+~ $20,FC,5F,4D,43,48          ;L0003:MOVE.L    #$5F4D4348,(A0)+    ;(#"_MCH")
+~ $20,C0                            ;MOVE.L    D0,(A0)+
+~ $4E,75                            ;RTS
+
+.XBIOSPlatzEnd:
+_IF .XBIOSPlatzEnd > 186A
+ _ERROR 'XBIOS-Platz überschritten!!!!'
+_ENDIF
+
+;*******************************************************************************
+;* Sprung zum setzen von syncmode anpassen.
+;* [ALL]
+
+D2
+~ $61,00,.VDOSkip1-~.W              ;BSR       $nnn(PC)
+~ $4E,71                            ;NOP
+
+; zweiten Sprung anpassen
+
+5B0
+~ $61,00,.VDOSkip2-~.W              ;BSR       $nnn(PC)
+
+;*******************************************************************************
+;* SE: (04.11.93)
+;* Sprung zu _VDO- und _MCH-Cookies anpassen.
+;* [ALL]
+
+3DE
+~ $61,00,.MCHTest-~.W               ;BSR       $nnn(PC)
+~ $4E,71
+~ $4E,71,4E,71,4E,71
+~ $4E,71,4E,71,4E,71
+~ $4E,71,4E,71,4E,71
+
+;*******************************************************************************
+;* c't 9/92 / SE (18.09.93):
+;* SCSI-I/O muß immer Fehler -12 zurückgeben.
+;* (auf -1 umgestellt).
+;* [ALL]
+
+1B68 $70,FF                         ;MOVEQ     #-1,D0
+~    $4E,75                         ;RTS
+1BA4 $70,FF                         ;MOVEQ     #-1,D0
+~    $4E,75                         ;RTS
+1CFE $4E,75                         ;RTS
+
+;*******************************************************************************
+;* RTC-Patches:
+;* Die Megauhr soll ja wohl auch ausgelesen werden, oder?
+;* Da das 3.06 natürlich nichts von der Mega-Uhr weiß, müssen hier andere
+;* Routinen rein.
+;*******************************************************************************
+
+;*******************************************************************************
+;* SE: (19.09.93)
+;* Bei der Zeitinitialisierung beim System-Boot wird nach der Kontrolle auf
+;* Uhrenexistenz auch auf Gültigkeit getestet.
+;* Muß entfernt werden, da sonst nachträglich verworfen würde:
+;* [ALL]
+
+1EF6
+~ $4E,71,4E,71,4E,71                ;MOVE.B    #$D,$FFFF8961.W
+~ $4E,71,4E,71                      ;MOVE.B    $FFFF8963.W,D0
+~ $4E,71,4E,71                      ;BTST      #7,D0
+~ $4E,71                            ;BNE.S     $C(PC)               L015F
+~ $4E,71,4E,71,4E,71                ;MOVE.L    #$12C80000,-(A7)
+~ $4E,71,4E,71                      ;BSR       $B8(PC)              L0164
+~ $4E,71,4E,71                      ;ADDQ.W    #4,A7
+
+;*******************************************************************************
+;* SE: (19.09.93)
+;* Uhrzeit aus RTC holen, und in D0 im GEMDOS-Format liefern.
+;* [ALL]
+
+1F20
+~ $61,00,01,3C                ;L0000:BSR       $13C(PC)             L000B
+~ $65,50                            ;BCS.S     $50(PC)              L0001
+~ $08,A8,00,00,00,1B                ;BCLR      #0,$1B(A0)
+~ $42,80                            ;CLR.L     D0
+~ $72,01                            ;MOVEQ     #1,D1
+~ $61,46                            ;BSR.S     $46(PC)              L0002
+~ $E2,81                            ;ASR.L     #1,D1
+~ $EF,C0,16,C5                      ;BFINS     D1,D0{27:5}
+~ $72,05                            ;MOVEQ     #5,D1
+~ $61,3C                            ;BSR.S     $3C(PC)              L0002
+~ $EF,C0,15,46                      ;BFINS     D1,D0{21:6}
+~ $72,09                            ;MOVEQ     #9,D1
+~ $61,34                            ;BSR.S     $34(PC)              L0002
+~ $EF,C0,14,05                      ;BFINS     D1,D0{16:5}
+~ $72,0F                            ;MOVEQ     #$F,D1
+~ $61,2C                            ;BSR.S     $2C(PC)              L0002
+~ $EF,C0,12,C5                      ;BFINS     D1,D0{11:5}
+~ $72,13                            ;MOVEQ     #$13,D1
+~ $61,24                            ;BSR.S     $24(PC)              L0002
+~ $EF,C0,11,C4                      ;BFINS     D1,D0{7:4}
+~ $72,17                            ;MOVEQ     #$17,D1
+~ $61,1C                            ;BSR.S     $1C(PC)              L0002
+~ $EF,C0,10,07                      ;BFINS     D1,D0{0:7}
+~ $40,C2                            ;MOVE      SR,D2
+~ $00,7C,07,00                      ;ORI.W     #$700,SR
+~ $31,C0,57,5C                      ;MOVE.W    D0,$575C.W
+~ $48,40                            ;SWAP      D0
+~ $33,C0,00,00,82,B6                ;MOVE.W    D0,$82B6
+~ $48,40                            ;SWAP      D0
+~ $46,C2                            ;MOVE      D2,SR
+~ $4E,75                      ;L0001:RTS
+~ $14,30,10,00                ;L0002:MOVE.B    0(A0,D1.W),D2
+~ $61,12                            ;BSR.S     $12(PC)              L0003
+~ $02,02,00,0F                      ;ANDI.B    #$F,D2
+~ $12,30,10,02                      ;MOVE.B    2(A0,D1.W),D1
+~ $02,01,00,0F                      ;ANDI.B    #$F,D1
+~ $C2,FC,00,0A                      ;MULU      #$A,D1
+~ $D2,02                            ;ADD.B     D2,D1
+~ $2F,00                      ;L0003:MOVE.L    D0,-(A7)
+~ $30,3C,01,01                      ;MOVE.W    #$101,D0
+~ $4E,B9,00,E0,16,2E                ;JSR       $E0162E
+~ $20,1F                            ;MOVE.L    (A7)+,D0
+~ $4E,75                            ;RTS
+~ $2E,4A                      ;L0004:MOVEA.L   A2,A7
+~ $21,C9,00,08                ;L0005:MOVE.L    A1,8.W
+~ $00,3C,00,01                      ;ORI.B     #1,CCR
+~ $4E,75                            ;RTS
+~ $21,C9,00,08                ;L0006:MOVE.L    A1,8.W
+~ $11,7C,00,01,00,01                ;MOVE.B    #1,1(A0)
+~ $11,7C,00,00,00,1D                ;MOVE.B    #0,$1D(A0)
+~ $02,3C,00,FE                      ;ANDI.B    #-2,CCR
+~ $4E,75                            ;RTS
+~ $00,00,00,00
+
+;*******************************************************************************
+;* SE: (20.09.93)
+;* RTC auf neue Zeit einstellen.
+;* Erhält die Zeit im GEMDOS-Format auf dem Stack (4(SP)).
+;* [ALL]
+
+~ $61,00,00,96                ;L0007:BSR       $96(PC)              L000B
+~ $65,00,00,7E                      ;BCS       $7E(PC)              L0009
+~ $08,A8,00,00,00,1B                ;BCLR      #0,$1B(A0)
+~ $20,2F,00,04                      ;MOVE.L    4(A7),D0
+~ $E9,C0,16,C5                      ;BFEXTU    D0{27:5},D1
+~ $02,81,00,00,00,1F                ;ANDI.L    #$1F,D1
+~ $E3,81                            ;ASL.L     #1,D1
+~ $74,01                            ;MOVEQ     #1,D2
+~ $61,44                            ;BSR.S     $44(PC)              L0008
+~ $E9,C0,15,46                      ;BFEXTU    D0{21:6},D1
+~ $02,81,00,00,00,3F                ;ANDI.L    #$3F,D1
+~ $74,05                            ;MOVEQ     #5,D2
+~ $61,36                            ;BSR.S     $36(PC)              L0008
+~ $E9,C0,14,05                      ;BFEXTU    D0{16:5},D1
+~ $02,81,00,00,00,1F                ;ANDI.L    #$1F,D1
+~ $74,09                            ;MOVEQ     #9,D2
+~ $61,28                            ;BSR.S     $28(PC)              L0008
+~ $E9,C0,12,C5                      ;BFEXTU    D0{11:5},D1
+~ $02,81,00,00,00,1F                ;ANDI.L    #$1F,D1
+~ $74,0F                            ;MOVEQ     #$F,D2
+~ $61,1A                            ;BSR.S     $1A(PC)              L0008
+~ $E9,C0,11,C4                      ;BFEXTU    D0{7:4},D1
+~ $02,81,00,00,00,0F                ;ANDI.L    #$F,D1
+~ $74,13                            ;MOVEQ     #$13,D2
+~ $61,0C                            ;BSR.S     $C(PC)               L0008
+~ $E9,C0,10,07                      ;BFEXTU    D0{0:7},D1
+~ $02,81,00,00,00,7F                ;ANDI.L    #$7F,D1
+~ $74,17                            ;MOVEQ     #$17,D2
+~ $2F,03                      ;L0008:MOVE.L    D3,-(A7)
+~ $42,83                            ;CLR.L     D3
+~ $16,01                            ;MOVE.B    D1,D3
+~ $86,FC,00,0A                      ;DIVU      #$A,D3
+~ $C6,FC,00,0A                      ;MULU      #$A,D3
+~ $92,03                            ;SUB.B     D3,D1
+~ $86,FC,00,0A                      ;DIVU      #$A,D3
+~ $11,81,20,00                      ;MOVE.B    D1,0(A0,D2.W)
+~ $11,83,20,02                      ;MOVE.B    D3,2(A0,D2.W)
+~ $26,1F                            ;MOVE.L    (A7)+,D3
+~ $4E,75                      ;L0009:RTS
+~ $B4,41                      ;L000A:CMP.W     D1,D2
+~ $66,00,FF,52                      ;BNE       -$AE(PC)             L0005
+~ $01,88,00,05                      ;MOVEP.W   D0,5(A0)
+~ $60,00,FF,54                      ;BRA       -$AC(PC)             L0006
+~ $00,00,00,00
+
+;*******************************************************************************
+;* SE: (20.09.93)
+;* Check, ob die Uhr da ist.
+;* [ALL]
+
+~ $24,4F                      ;L000B:MOVEA.L   A7,A2
+~ $22,78,00,08                      ;MOVEA.L   8.W,A1
+~ $41,FA,FF,3A                      ;LEA       -$C6(PC),A0          L0004
+~ $21,C8,00,08                      ;MOVE.L    A0,8.W
+~ $30,7C,FC,20                      ;MOVEA.W   #-$3E0,A0
+~ $08,E8,00,00,00,1B                ;BSET      #0,$1B(A0)
+~ $01,08,00,05                      ;MOVEP.W   5(A0),D0
+~ $32,3C,0A,05                      ;MOVE.W    #$A05,D1
+~ $03,88,00,05                      ;MOVEP.W   D1,5(A0)
+~ $05,08,00,05                      ;MOVEP.W   5(A0),D2
+~ $02,42,0F,0F                      ;ANDI.W    #$F0F,D2
+~ $60,C0                            ;BRA.S     -$40(PC)             L000A
+
+;*******************************************************************************
+;* Ende der RTC-Patches
+;*******************************************************************************
+
+;*******************************************************************************
+;* c't 9/92:
+;* MFP-Init.
+;*
+;* Nur einbinden, wenn kein TT-MFP vorhanden ist.
+;* [ALL]
+
+_IF .HasTTMfp = 0
+ 24F4 $4E,71,4E,71,4E,71,4E,71,4E,71,4E,71
+ ~    $4E,71,4E,71,4E,71,4E,71,4E,71,4E,71
+ 2552 $4E,71,4E,71,4E,71,4E,71,4E,71,4E,71,4E,71
+ ~    $4E,71,4E,71,4E,71,4E,71,4E,71,4E,71
+ 26A4 $4E,71,4E,71,4E,71,4E,71,4E,71,4E,71
+_ENDIF
+
+;*******************************************************************************
+;* SE: (16.12.93)
+;* Initialisierung der BCONMAP-Tabelle abhängig davon, ob überhaupt die
+;* weiteren Seriellen drin sind (MSTE).
+;*
+;* Nur einbinden, wenn kein TT-MFP vorhanden ist.
+;* [ALL]
+
+_IF .HasTTMfp = 0
+ 2C38
+ ~ $41,F8,10,FE                     ;LEA       $10FE.W,A0
+ ~ $21,C8,10,EE                     ;MOVE.L    A0,$10EE.W
+ ~ $70,01                           ;MOVEQ     #1,D0
+ ~ $24,78,00,08                     ;MOVEA.L   8.W,A2
+ ~ $43,FA,00,10                     ;LEA       $10(PC),A1           L0001
+ ~ $21,C9,00,08                     ;MOVE.L    A1,8.W
+ ~ $22,4F                           ;MOVEA.L   A7,A1
+ ~ $4A,38,8E,09                     ;TST.B     $FFFF8E09.W
+ ~ $30,3C,00,03                     ;MOVE.W    #3,D0
+ ~ $2E,49                     ;L0001:MOVEA.L   A1,A7
+ ~ $21,CA,00,08                     ;MOVE.L    A2,8.W
+ ~ $31,C0,10,F2                     ;MOVE.W    D0,$10F2.W
+ ~ $31,FC,00,06,10,F4               ;MOVE.W    #6,$10F4.W
+ ~ $43,FA,FE,E0                     ;LEA       -$120(PC),A1         L0000
+ ~ $24,49                           ;MOVEA.L   A1,A2
+ ~ $70,11                           ;MOVEQ     #$11,D0
+ ~ $20,DA                     ;L0002:MOVE.L    (A2)+,(A0)+
+ ~ $51,C8,FF,FC                     ;DBF       D0,-4(PC)            L0002
+ ~ $41,F8,05,22                     ;LEA       $522.W,A0
+ ~ $20,99                           ;MOVE.L    (A1)+,(A0)
+ ~ $21,59,00,20                     ;MOVE.L    (A1)+,$20(A0)
+ ~ $21,59,00,40                     ;MOVE.L    (A1)+,$40(A0)
+ ~ $21,59,00,60                     ;MOVE.L    (A1)+,$60(A0)
+ ~ $21,D9,10,F6                     ;MOVE.L    (A1)+,$10F6.W
+ ~ $21,D9,10,FA                     ;MOVE.L    (A1)+,$10FA.W
+ ~ $4E,75                           ;RTS
+_ENDIF
+
+;*******************************************************************************
+;* SE: (16.12.93)
+;* Die BCONMAP-Tabelle, TT-MFP entfernt.
+;* [ALL]
+
+_IF .HasTTMfp = 0
+ 2B4A
+ ; Eintrag für MFP-Serielle
+ ~ $00,E0,23,A4               ;L01F8:DC.L      $00E023A4            L0191
+ ~ $00,E0,23,BA                     ;DC.L      $00E023BA            L0194
+ ~ $00,E0,24,06                     ;DC.L      $00E02406            L019A
+ ~ $00,E0,24,1E                     ;DC.L      $00E0241E            L019D
+ ~ $00,E0,2A,66                     ;DC.L      $00E02A66            L01EA
+ ~ $00,00,0E,A6                     ;DC.L      $00000EA6
+ ; Eintrag für SCC-B
+ ~ $00,E0,2F,A8                     ;DC.L      $00E02FA8            L021F
+ ~ $00,E0,2F,B2                     ;DC.L      $00E02FB2            L0220
+ ~ $00,E0,2F,BC                     ;DC.L      $00E02FBC            L0221
+ ~ $00,E0,2F,C6                     ;DC.L      $00E02FC6            L0222
+ ~ $00,E0,30,AA                     ;DC.L      $00E030AA            L0234
+ ~ $00,00,17,A6                     ;DC.L      $000017A6
+ ; Eintrag für TT-MFP kann entfernt werden
+ ;~ $00,E0,2C,7C                     ;DC.L      $00E02C7C            L01FD
+ ;~ $00,E0,2C,84                     ;DC.L      $00E02C84            L01FE
+ ;~ $00,E0,2C,90                     ;DC.L      $00E02C90            L01FF
+ ;~ $00,E0,2C,98                     ;DC.L      $00E02C98            L0200
+ ;~ $00,E0,2C,E6                     ;DC.L      $00E02CE6            L0201
+ ;~ $00,00,13,5E                     ;DC.L      $0000135E
+ ; Eintrag für SCC-A
+ ~ $00,E0,2F,D2                     ;DC.L      $00E02FD2            L0223
+ ~ $00,E0,2F,DC                     ;DC.L      $00E02FDC            L0224
+ ~ $00,E0,2F,E6                     ;DC.L      $00E02FE6            L0225
+ ~ $00,E0,2F,F0                     ;DC.L      $00E02FF0            L0226
+ ~ $00,E0,30,A0                     ;DC.L      $00E030A0            L0233
+ ~ $00,00,15,82                     ;DC.L      $00001582
+_ENDIF
+
+;*******************************************************************************
+;* SE: (23.01.94)
+;* Mega STE hat kein SCCDMA!!
+;* [ALL]
+
+2D72 $4E,71,4E,71
+
+;*******************************************************************************
+;* SE: (26.10.93)
+;* Das gleiche Prozessorunabhängig:
+;* MMU-Deinitialisierung vor Kaltstart.
+;* [FRG/USA]
+
+_SWITCH .NATION
+_CASE .FRG: .NUL_TABLE = E36768
+            380C
+_CASE .USA: .NUL_TABLE = E36738
+            37B2
+_DEFAULT: _ERROR "Nation wird nicht unterstützt"
+_ENDSWITCH
+
+~ $46,FC,27,00                      ;MOVE      #$2700,SR
+~ $20,3C,00,00,08,08                ;MOVE.L    #$0808,D0
+~ $4E,7B,00,02                      ;MOVEC     D0,CACR
+~ $70,00                            ;MOVEQ     #0,D0
+~ $4E,7B,08,01                      ;MOVEC     D0,VBR
+~ $41,FA,00,1C                      ;LEA       $1C(PC),A0           L0000
+~ $21,C8,00,10                      ;MOVE.L    A0,$10.W
+~ $21,C8,00,2C                      ;MOVE.L    A0,$2C.W
+~ $41,F9,.NUL_TABLE.L               ;LEA       .NUL_TABLE,A0
+~ $F0,10,40,00                      ;PMOVE     (A0),TC
+~ $F0,10,08,00                      ;PMOVE     (A0),TT0
+~ $F0,10,0C,00                      ;PMOVE     (A0),TT1
+~ $30,3C,00,0A                ;L0000:MOVE.W    #$A,D0
+~ $41,FA,00,10                      ;LEA       $10(PC),A0           L0002
+~ $32,7C,00,0C                      ;MOVEA.W   #$C,A1
+~ $22,D8                      ;L0001:MOVE.L    (A0)+,(A1)+
+~ $51,C8,FF,FC                      ;DBF       D0,-4(PC)            L0001
+~ $4E,F8,00,0C                      ;JMP       $C.W
+~ $41,FA,00,1A                ;L0002:LEA       $1A(PC),A0           L0004
+~ $21,C8,00,08                      ;MOVE.L    A0,8.W
+~ $41,FA,00,20                      ;LEA       $20(PC),A0           L0005
+~ $70,00                            ;MOVEQ     #0,D0
+~ $72,00                            ;MOVEQ     #0,D1
+~ $74,00                            ;MOVEQ     #0,D2
+~ $48,D0,00,07                ;L0003:MOVEM.L   D0-D2,(A0)
+~ $41,E8,00,0C                      ;LEA       $C(A0),A0
+~ $60,F6                            ;BRA.S     -$A(PC)              L0003
+~ $21,F8,00,04,00,08          ;L0004:MOVE.L    4.W,8.W
+~ $41,F9,01,00,00,00                ;LEA       $01000000.L,A0
+~ $60,E8                            ;BRA.S     -$18(PC)             L0003
+
+;*******************************************************************************
+;* c't 9/92:
+;* TT-Register $FF860E:
+;* [FRG/USA]
+
+_IF .MSTE = 0
+ _SWITCH .NATION
+ _CASE .FRG:
+  3E54 $4E,71,4E,71
+  430C $4E,71,4E,71
+  4360 $4E,71,4E,71,4E,71
+ _CASE .USA:
+  3DFA $4E,71,4E,71
+  42B2 $4E,71,4E,71
+  4306 $4E,71,4E,71,4E,71
+ _DEFAULT: _ERROR "Nation wird nicht unterstützt"
+ _ENDSWITCH
+_ENDIF
+
+;*******************************************************************************
+;* c't 9/92:
+;* Benutzung der TT-Palette verhindern
+;*
+;* Hier liegt das Problem, daß die Farben nicht eingestellt werden können.
+;* Mit NVDI geht es, Spiele programmieren die Hardware selbst
+;* -> muß nicht unbedingt gepatched werden.
+;*
+;* Ist jetzt nicht mehr erforderlich, da neue Routinen vorhanden sind (s.u.)
+;* [FRG/USA]
+
+_SWITCH .NATION
+_CASE .FRG: .VS_COLOR = 6EA4
+            .VQ_COLOR = 7052
+_CASE .USA: .VS_COLOR = 6E4A
+            .VQ_COLOR = 6FF8
+_DEFAULT: _ERROR "Nation wird nicht unterstützt"
+_ENDSWITCH
+
+;.VS_COLOR $4E,75
+;.VQ_COLOR $4E,75
+
+;*******************************************************************************
+;* MH: (04.11.94)
+;* Anpassung von v_opnwk. Farbinitialisierung funktioniert wieder.
+;* [FRG/USA]
+
+.V_COLOR = 1        ;1: Neue Farbroutinen einbinden, 0: nicht einbinden
+
+_SWITCH .NATION
+_CASE .FRG: .V_OPNWK      =  672C
+            .V_OPNWK_JMP  =  694A
+            .V_OPNWK_END  =  67EE
+
+            .VS_COLOR     =  6EA4
+            .VQ_COLOR     =  7052
+            .VQ_COLOR_END =  7226
+
+            .MAP_TAB      = 3D25E
+            .REMAP_TAB    = 3D45E
+
+_CASE .USA: .V_OPNWK      =  66D2
+            .V_OPNWK_JMP  =  68F0
+            .V_OPNWK_END  =  6794
+
+            .VS_COLOR     =  6E4A
+            .VQ_COLOR     =  6FF8
+            .VQ_COLOR_END =  71CC
+
+            .MAP_TAB      = 3D22E
+            .REMAP_TAB    = 3D42E
+
+_DEFAULT: .V_COLOR = 0
+_ENDSWITCH
+
+_IF .V_COLOR
+ .V_OPNWK
+ ~ $70,00                           ;MOVEQ     #0,D0
+ ~ $10,38,04,4C                     ;MOVE.B    $44C.S,D0
+ ~ $20,78,3A,22                     ;MOVEA.L   $3A22.S,A0
+ ~ $32,10                           ;MOVE.W    (A0),D1
+ ~ $B2,7C,00,01                     ;CMP.W     #1,D1
+ ~ $67,2A                           ;BEQ.S     42(PC)               L0002
+ ~ $B0,7C,00,02                     ;CMP.W     #2,D0
+ ~ $67,24                           ;BEQ.S     36(PC)               L0002
+ ~ $55,41                           ;SUBQ.W    #2,D1
+ ~ $6B,0A                           ;BMI.S     10(PC)               L0000
+ ~ $B2,40                           ;CMP.W     D0,D1
+ ~ $67,1C                           ;BEQ.S     28(PC)               L0002
+ ~ $B2,7C,00,02                     ;CMP.W     #2,D1
+ ~ $65,02                           ;BCS.S     2(PC)                L0001
+ ~ $72,00                     ;L0000:MOVEQ     #0,D1
+ ~ $3F,01                     ;L0001:MOVE.W    D1,-(A7)
+ ~ $70,FF                           ;MOVEQ     #$FF,D0
+ ~ $2F,00                           ;MOVE.L    D0,-(A7)
+ ~ $2F,00                           ;MOVE.L    D0,-(A7)
+ ~ $3F,3C,00,05                     ;MOVE.W    #5,-(A7)
+ ~ $4E,4E                           ;TRAP      #$E
+ ~ $4F,EF,00,0C                     ;LEA       12(A7),A7
+ ~ $60,04                           ;BRA.S     4(PC)                L0003
+ ~ $61,00,.V_OPNWK_JMP-~.W    ;L0002:BSR       $nnn(PC) ($1E0)      L0006 extern
+ ~ $41,FA,00,2A               ;L0003:LEA       42(PC),A0            L0005
+ ~ $10,38,04,4C                     ;MOVE.B    $44C.S,D0
+ ~ $67,08                           ;BEQ.S     8(PC)                L0004
+ ~ $B0,3C,00,02                     ;CMP.B     #2,D0
+ ~ $62,02                           ;BHI.S     2(PC)                L0004
+ ~ $51,88                           ;SUBQ.L    #8,A0
+ ~ $48,50                     ;L0004:PEA       (A0)
+ ~ $3F,3C,00,06                     ;MOVE.W    #6,-(A7)
+ ~ $4E,4E                           ;TRAP      #$E
+ ~ $5C,8F                           ;ADDQ.L    #6,A7
+ ~ $70,00                           ;MOVEQ     #0,D0
+ ~ $10,38,04,4C                     ;MOVE.B    $44C.S,D0
+ ~ $4E,75                           ;RTS
+
+ ~ $0F,FF,0F,00,00,F0,00,00         ;DC.W      $0FFF,$0F00,$00F0,$0000
+ ~ $0F,FF,0F,00,00,F0,0F,F0   ;L0005:DC.W      $0FFF,$0F00,$00F0,$0FF0
+ ~ $00,0F,0F,0F,00,FF,05,55         ;DC.W      $000F,$0F0F,$00FF,$0555
+ ~ $03,33,0F,33,03,F3,0F,F3         ;DC.W      $0333,$0F33,$03F3,$0FF3
+ ~ $03,3F,0F,3F,03,FF,00,00         ;DC.W      $033F,$0F3F,$03FF,$0000
+
+ _FILL ~,.V_OPNWK_END,$FF           ;Leerbereich füllen
+
+;*******************************************************************************
+;* MH: (14.10.94)
+;* Neue vs_color- und vq_color-Routinen.
+;* Jetzt können die Farben eingestellt werden.
+
+ .VS_COLOR
+ ~ $48,E7,1F,FC                     ;MOVEM.L   A0-A5/D3-D7,-(A7)
+ ~ $4B,F8,3A,1A                     ;LEA       $3A1A.S,A5
+ ~ $41,FA,02,BE                     ;LEA       702(PC),A0           L001A
+ ~ $38,2D,00,00                     ;MOVE.W    0(A5),D4
+ ~ $30,04                           ;MOVE.W    D4,D0
+ ~ $D0,40                           ;ADD.W     D0,D0
+ ~ $3E,30,00,00                     ;MOVE.W    0(A0,D0.W),D7
+ ~ $20,6D,00,08                     ;MOVEA.L   8(A5),A0
+ ~ $3C,18                           ;MOVE.W    (A0)+,D6
+ ~ $BC,47                           ;CMP.W     D7,D6
+ ~ $62,00,00,90                     ;BHI       144(PC)              L0006
+ ~ $49,ED,FD,AE                     ;LEA       -594(A5),A4
+ ~ $30,06                           ;MOVE.W    D6,D0
+ ~ $C0,FC,00,06                     ;MULU      #6,D0
+ ~ $D9,C0                           ;ADDA.L    D0,A4
+ ~ $38,D8                           ;MOVE.W    (A0)+,(A4)+
+ ~ $38,D8                           ;MOVE.W    (A0)+,(A4)+
+ ~ $38,90                           ;MOVE.W    (A0),(A4)
+ ~ $4B,E8,FF,FC                     ;LEA       -4(A0),A5
+ ~ $53,44                           ;SUBQ.W    #1,D4
+ ~ $67,7A                           ;BEQ.S     122(PC)              L0007
+ ~ $3A,3C,02,00                     ;MOVE.W    #$200,D5
+ ~ $4A,38,0A,13                     ;TST.B     $A13.S
+ ~ $66,04                           ;BNE.S     4(PC)                L0000
+ ~ $3A,3C,10,00                     ;MOVE.W    #$1000,D5
+ ~ $3B,45,FC,F4               ;L0000:MOVE.W    D5,-780(A5)
+ ~ $3B,45,FD,9A                     ;MOVE.W    D5,-614(A5)
+ ~ $9A,7C,02,00                     ;SUB.W     #$200,D5
+ ~ $41,F9,00,E3,D2,5E               ;LEA       $E3D25E,A0
+ ~ $DC,46                           ;ADD.W     D6,D6
+ ~ $3C,30,60,00                     ;MOVE.W    0(A0,D6.W),D6
+ ~ $CC,47                           ;AND.W     D7,D6
+ ~ $76,00                           ;MOVEQ     #0,D3
+ ~ $7E,03                           ;MOVEQ     #3,D7
+ ~ $78,00                     ;L0001:MOVEQ     #0,D4
+ ~ $38,1D                           ;MOVE.W    (A5)+,D4
+ ~ $6A,02                           ;BPL.S     2(PC)                L0002
+ ~ $78,00                           ;MOVEQ     #0,D4
+ ~ $B8,7C,03,E8               ;L0002:CMP.W     #$3E8,D4
+ ~ $63,04                           ;BLS.S     4(PC)                L0003
+ ~ $38,3C,03,E8                     ;MOVE.W    #$3E8,D4
+ ~ $4A,45                     ;L0003:TST.W     D5
+ ~ $67,18                           ;BEQ.S     24(PC)               L0004
+ ~ $C8,FC,00,0F                     ;MULU      #$F,D4
+ ~ $D8,BC,00,00,01,F4               ;ADD.L     #$1F4,D4
+ ~ $88,FC,03,E8                     ;DIVU      #$3E8,D4
+ ~ $E2,4C                           ;LSR.W     #1,D4
+ ~ $64,0E                           ;BCC.S     14(PC)               L0005
+ ~ $88,7C,00,08                     ;OR.W      #8,D4
+ ~ $60,08                           ;BRA.S     8(PC)                L0005
+ ~ $D8,7C,00,48               ;L0004:ADD.W     #$48,D4
+ ~ $88,FC,00,8F                     ;DIVU      #$8F,D4
+ ~ $E9,4B                     ;L0005:LSL.W     #4,D3
+ ~ $86,44                           ;OR.W      D4,D3
+ ~ $53,47                           ;SUBQ.W    #1,D7
+ ~ $66,C2                           ;BNE.S     -62(PC)              L0001
+ ~ $41,F8,82,40                     ;LEA       $FFFF8240.S,A0
+ ~ $DC,46                           ;ADD.W     D6,D6
+ ~ $31,83,60,00                     ;MOVE.W    D3,0(A0,D6.W)
+ ~ $4C,DF,3F,F8               ;L0006:MOVEM.L   (A7)+,A0-A5/D3-D7
+ ~ $4E,75                           ;RTS
+ ~ $7A,02                     ;L0007:MOVEQ     #2,D5
+ ~ $3B,45,FC,F4                     ;MOVE.W    D5,-780(A5)
+ ~ $3B,45,FD,9A                     ;MOVE.W    D5,-614(A5)
+ ~ $76,00                           ;MOVEQ     #0,D3
+ ~ $7E,03                           ;MOVEQ     #3,D7
+ ~ $30,3C,00,8E                     ;MOVE.W    #$8E,D0
+ ~ $32,3C,03,5A                     ;MOVE.W    #$35A,D1
+ ~ $4A,38,0A,13                     ;TST.B     $A13.S
+ ~ $66,08                           ;BNE.S     8(PC)                L0008
+ ~ $30,3C,00,43                     ;MOVE.W    #$43,D0             ;(#"C")
+ ~ $32,3C,03,A6                     ;MOVE.W    #$3A6,D1
+ ~ $38,1D                     ;L0008:MOVE.W    (A5)+,D4
+ ~ $6B,14                           ;BMI.S     20(PC)               L000B
+ ~ $B8,7C,03,E8                     ;CMP.W     #$3E8,D4
+ ~ $62,08                           ;BHI.S     8(PC)                L0009
+ ~ $B8,40                           ;CMP.W     D0,D4
+ ~ $6D,0A                           ;BLT.S     10(PC)               L000B
+ ~ $B8,41                           ;CMP.W     D1,D4
+ ~ $6D,04                           ;BLT.S     4(PC)                L000A
+ ~ $38,3C,03,E8               ;L0009:MOVE.W    #$3E8,D4
+ ~ $D6,44                     ;L000A:ADD.W     D4,D3
+ ~ $53,47                     ;L000B:SUBQ.W    #1,D7
+ ~ $66,E4                           ;BNE.S     -28(PC)              L0008
+ ~ $4A,43                           ;TST.W     D3
+ ~ $67,08                           ;BEQ.S     8(PC)                L000C
+ ~ $B6,7C,0B,B8                     ;CMP.W     #$BB8,D3
+ ~ $66,06                           ;BNE.S     6(PC)                L000D
+ ~ $46,46                           ;NOT.W     D6
+ ~ $31,C6,82,40               ;L000C:MOVE.W    D6,$FFFF8240.S
+ ~ $4C,DF,3F,F8               ;L000D:MOVEM.L   (A7)+,A0-A5/D3-D7
+ ~ $4E,75                           ;RTS
+
+ _FILL ~,.VQ_COLOR,$FF              ;Leerbereich füllen
+
+ .VQ_COLOR
+ ~ $48,E7,1F,FC                     ;MOVEM.L   A0-A5/D3-D7,-(A7)
+ ~ $4B,F8,3A,1A                     ;LEA       $3A1A.S,A5
+ ~ $20,6D,00,04                     ;MOVEA.L   4(A5),A0
+ ~ $31,7C,00,04,00,08               ;MOVE.W    #4,8(A0)
+ ~ $41,FA,01,06                     ;LEA       262(PC),A0           L001A
+ ~ $38,2D,00,00                     ;MOVE.W    0(A5),D4
+ ~ $30,04                           ;MOVE.W    D4,D0
+ ~ $D0,40                           ;ADD.W     D0,D0
+ ~ $3E,30,00,00                     ;MOVE.W    0(A0,D0.W),D7
+ ~ $20,6D,00,08                     ;MOVEA.L   8(A5),A0
+ ~ $26,6D,00,10                     ;MOVEA.L   16(A5),A3
+ ~ $3C,18                           ;MOVE.W    (A0)+,D6
+ ~ $BC,47                           ;CMP.W     D7,D6
+ ~ $63,06                           ;BLS.S     6(PC)                L000E
+ ~ $36,BC,FF,FF                     ;MOVE.W    #$FFFF,(A3)
+ ~ $60,7A                           ;BRA.S     122(PC)              L0014
+ ~ $36,C6                     ;L000E:MOVE.W    D6,(A3)+
+ ~ $49,ED,FD,AE                     ;LEA       -594(A5),A4
+ ~ $30,06                           ;MOVE.W    D6,D0
+ ~ $C0,FC,00,06                     ;MULU      #6,D0
+ ~ $D9,C0                           ;ADDA.L    D0,A4
+ ~ $4A,50                           ;TST.W     (A0)
+ ~ $67,6E                           ;BEQ.S     110(PC)              L0015
+ ~ $53,44                           ;SUBQ.W    #1,D4
+ ~ $67,76                           ;BEQ.S     118(PC)              L0016
+ ~ $3A,3C,02,00                     ;MOVE.W    #$200,D5
+ ~ $4A,38,0A,13                     ;TST.B     $A13.S
+ ~ $66,04                           ;BNE.S     4(PC)                L000F
+ ~ $3A,3C,10,00                     ;MOVE.W    #$1000,D5
+ ~ $3B,45,FC,F4               ;L000F:MOVE.W    D5,-780(A5)
+ ~ $3B,45,FD,9A                     ;MOVE.W    D5,-614(A5)
+ ~ $9A,7C,02,00                     ;SUB.W     #$200,D5
+ ~ $41,F9,00,E3,D2,5E               ;LEA       $E3D25E,A0
+ ~ $DC,46                           ;ADD.W     D6,D6
+ ~ $3C,30,60,00                     ;MOVE.W    0(A0,D6.W),D6
+ ~ $CC,47                           ;AND.W     D7,D6
+ ~ $41,F8,82,40                     ;LEA       $FFFF8240.S,A0
+ ~ $30,06                           ;MOVE.W    D6,D0
+ ~ $D0,40                           ;ADD.W     D0,D0
+ ~ $36,30,00,00                     ;MOVE.W    0(A0,D0.W),D3
+ ~ $5C,8B                           ;ADDQ.L    #6,A3
+ ~ $72,03                           ;MOVEQ     #3,D1
+ ~ $30,03                     ;L0010:MOVE.W    D3,D0
+ ~ $4A,45                           ;TST.W     D5
+ ~ $67,16                           ;BEQ.S     22(PC)               L0012
+ ~ $D0,40                           ;ADD.W     D0,D0
+ ~ $08,00,00,04                     ;BTST      #4,D0
+ ~ $67,02                           ;BEQ.S     2(PC)                L0011
+ ~ $52,40                           ;ADDQ.W    #1,D0
+ ~ $C0,7C,00,0F               ;L0011:AND.W     #$F,D0
+ ~ $D0,40                           ;ADD.W     D0,D0
+ ~ $37,3B,00,4E                     ;MOVE.W    78(PC,D0.W),-(A3)    L0018
+ ~ $60,0A                           ;BRA.S     10(PC)               L0013
+ ~ $C0,7C,00,07               ;L0012:AND.W     #7,D0
+ ~ $D0,40                           ;ADD.W     D0,D0
+ ~ $37,3B,00,62                     ;MOVE.W    98(PC,D0.W),-(A3)    L0019
+ ~ $E8,4B                     ;L0013:LSR.W     #4,D3
+ ~ $53,41                           ;SUBQ.W    #1,D1
+ ~ $66,D4                           ;BNE.S     -44(PC)              L0010
+ ~ $4C,DF,3F,F8               ;L0014:MOVEM.L   (A7)+,A0-A5/D3-D7
+ ~ $4E,75                           ;RTS
+ ~ $36,DC                     ;L0015:MOVE.W    (A4)+,(A3)+
+ ~ $36,DC                           ;MOVE.W    (A4)+,(A3)+
+ ~ $36,94                           ;MOVE.W    (A4),(A3)
+ ~ $4C,DF,3F,F8                     ;MOVEM.L   (A7)+,A0-A5/D3-D7
+ ~ $4E,75                           ;RTS
+ ~ $7A,02                     ;L0016:MOVEQ     #2,D5
+ ~ $3B,45,FC,F4                     ;MOVE.W    D5,-780(A5)
+ ~ $3B,45,FD,9A                     ;MOVE.W    D5,-614(A5)
+ ~ $30,38,82,40                     ;MOVE.W    $FFFF8240.S,D0
+ ~ $B1,46                           ;EOR.W     D0,D6
+ ~ $70,00                           ;MOVEQ     #0,D0
+ ~ $CC,7C,00,01                     ;AND.W     #1,D6
+ ~ $67,04                           ;BEQ.S     4(PC)                L0017
+ ~ $30,3C,03,E8                     ;MOVE.W    #$3E8,D0
+ ~ $36,C0                     ;L0017:MOVE.W    D0,(A3)+
+ ~ $36,C0                           ;MOVE.W    D0,(A3)+
+ ~ $36,80                           ;MOVE.W    D0,(A3)
+ ~ $4C,DF,3F,F8                     ;MOVEM.L   (A7)+,A0-A5/D3-D7
+ ~ $4E,75                           ;RTS
+
+ ~ $00,00,00,43,00,85,00,C8   ;L0018:DC.W      $0000,$0043,$0085,$00C8
+ ~ $01,0B,01,4D,01,90,01,D3         ;DC.W      $010B,$014D,$0190,$01D3
+ ~ $02,15,02,58,02,9B,02,DD         ;DC.W      $0215,$0258,$029B,$02DD
+ ~ $03,20,03,63,03,A5,03,E8         ;DC.W      $0320,$0363,$03A5,$03E8
+ ~ $00,00,00,8E,01,1D,01,AC   ;L0019:DC.W      $0000,$008E,$011D,$01AC
+ ~ $02,3B,02,CA,03,59,03,E8         ;DC.W      $023B,$02CA,$0359,$03E8
+ ~ $00,00,00,01,00,03,00,07   ;L001A:DC.W      $0000,$0001,$0003,$0007
+ ~ $00,0F,00,1F,00,7F,00,FF         ;DC.W      $000F,$001F,$007F,$00FF
+
+ _FILL ~,.VQ_COLOR_END,$FF          ;Leerbereich füllen
+
+ .MAP_TAB
+ ~     $00,00,00,0F,00,01,00,02     ;DC.W      $0000,$000F,$0001,$0002
+ ~     $00,04,00,06,00,03,00,05     ;DC.W      $0004,$0006,$0003,$0005
+ ~     $00,07,00,08,00,09,00,0A     ;DC.W      $0007,$0008,$0009,$000A
+ ~     $00,0C,00,0E,00,0B,00,0D     ;DC.W      $000C,$000E,$000B,$000D
+
+ .REMAP_TAB
+ ~     $00,00,00,02,00,03,00,06     ;DC.W      $0000,$0002,$0003,$0006
+ ~     $00,04,00,07,00,05,00,08     ;DC.W      $0004,$0007,$0005,$0008
+ ~     $00,09,00,0A,00,0B,00,0E     ;DC.W      $0009,$000A,$000B,$000E
+ ~     $00,0C,00,0F,00,0D,00,01     ;DC.W      $000C,$000F,$000D,$0001
+_ENDIF
+
+;*******************************************************************************
+;* SE: (04.12.93)
+;* Cache vs. Blitter im Desktop.
+;* Desktop-Eintrag 'Cache' statt 'Blitter' und Cache setzen, statt den Blitter.
+;* Das Desktop hakt den Menu-Eintrag nur ab, wenn das CCR auf $3111 steht.
+;* Auf einen Vergleich auf $xxx1 umgestellt, damit 020 und 030 egal sind.
+;* [FRG/USA]
+
+_SWITCH .NATION
+_CASE .FRG:
+ 2E7B0 $.20.W                      ;ab 68020 Caches einschalten
+ 2E7B6 $6C
+ 33C40 $.20.W
+ 33C46 $6D
+ 33EBE $.20.W
+ 33EC4 $6D
+ 33EF6 $C0,BC,00,00,00,01,67,0A    ;Vergleich auf $xxx1
+_CASE .USA:
+ 2E756 $.20.W                      ;ab 68020 Caches einschalten
+ 2E75C $6C
+ 33C10 $.20.W
+ 33C16 $6D
+ 33E8E $.20.W
+ 33E94 $6D
+ 33EC6 $C0,BC,00,00,00,01,67,0A    ;Vergleich auf $xxx1
+_ENDSWITCH
+
+;*******************************************************************************
+;* SE: (02.10.93)
+;* Veränderte MMU-Tabelle.
+;* Oberhalb von 10 MB kein Caching, z.B. für Mega-Bus.
+;* [FRG/USA]
+
+_SWITCH .NATION
+_CASE .FRG: 36420
+_CASE .USA: 363F0
+_DEFAULT: _ERROR "Nation wird nicht unterstützt"
+_ENDSWITCH
+
+; erste Ebene, 16 * 256 MB
+~ $00,00,07,42,10,00,00,01,20,00,00,01,30,00,00,01
+~ $40,00,00,01,50,00,00,01,60,00,00,01,70,00,00,01
+~ $80,00,00,41,90,00,00,41,A0,00,00,41,B0,00,00,41
+~ $C0,00,00,41,D0,00,00,41,E0,00,00,41,00,00,07,82
+
+; zweite Ebene, 16 * 16 MB $00000000 - $00FFFFFF
+~ $00,00,07,C2,01,00,00,01,02,00,00,01,03,00,00,01
+~ $04,00,00,01,05,00,00,01,06,00,00,01,07,00,00,01
+~ $08,00,00,01,09,00,00,01,0A,00,00,01,0B,00,00,01
+~ $0C,00,00,01,0D,00,00,01,0E,00,00,01,0F,00,00,01
+
+; zweite Ebene, 16 * 16 MB $F0000000 - $FFFFFFFF
+; Abbildung auf $00000000 - $00FFFFFF
+~ $00,00,00,41,01,00,00,41,02,00,00,41,03,00,00,41
+~ $04,00,00,41,05,00,00,41,06,00,00,41,07,00,00,41
+~ $08,00,00,41,09,00,00,41,0A,00,00,41,0B,00,00,41
+~ $0C,00,00,41,0D,00,00,41,0E,00,00,41,00,00,07,C2
+
+; dritte Ebene, 16 * 1 MB $00000000 - $00FFFFFF
+~ $00,00,00,01,00,10,00,01,00,20,00,01,00,30,00,01
+~ $00,40,00,01,00,50,00,01,00,60,00,01,00,70,00,01
+~ $00,80,00,01,00,90,00,01,00,A0,00,41,00,B0,00,41
+
+_IF .StaticRAM
+ ; ROM-Bereich schreibschützen
+ ~ $00,C0,00,41,00,D0,00,41,00,E0,00,05,00,F0,00,41
+_ELSE
+ ~ $00,C0,00,41,00,D0,00,41,00,E0,00,01,00,F0,00,41
+_ENDIF
+
+;*******************************************************************************
+;*
+;* Für PAK-Trick um mit FC-TOS auf Mainboard in die PAK-ROMs hochzukommen
+;* liegt leider mitten in der AES-RSC.
+;* Dadurch werden beim betroffenen Objekt obstate und obflags zerstört.
+;* Flags und States werden jedoch vor Verwendung des Dialoges (es ist der
+;* rohe Alert) unseres Wissens alle gesetzt, daher sollte es keine Probleme
+;* geben (bei der deutschen Version).
+;*
+;* Sprung nach $E00000 statt $E00030 wegen
+;* -das ist der TOS-Anfang, auch wenn der TOS-Header mal größer werden sollte
+;* -ob_spec wird nicht verändert!
+;* [ALL]
+;*
+;* >>> Achtung: Falls Fehler in Alertboxen auftreten (erster Button defekt),
+;*              so sollte man testen, diesen Patch zu entfernen.
+;*              Alternativ kann man den RSC-Patch aktivieren, da dann die
+;*              RSC/NEWDESK-Dateien in freien Speicher verlegt werden.
+
+_IF .BootJMP
+ 40030 $4E,F9,00,E0,00,00           ;JMP OS_Main
+_ENDIF
+
+
+;*******************************************************************************
+;*
+;* ST-RAM-Test aus TOS 2.06.
+;* Im NVM-Bereich untergebracht.
+;* [ALL]
+
+208C
+~ $4E,75                            ;RTS für NVMAccess
+.TST_RAM2:                          ;(208E)
+~ $E4,4E                      ;L0000:LSR.W     #2,D6
+~ $20,47                            ;MOVEA.L   D7,A0
+~ $50,88                            ;ADDQ.L    #8,A0
+~ $61,00,00,28                      ;BSR       $28(PC)              L0003
+~ $67,1A                            ;BEQ.S     $1A(PC)              L0002
+~ $20,47                            ;MOVEA.L   D7,A0
+~ $D1,C7                            ;ADDA.L    D7,A0
+~ $50,88                            ;ADDQ.L    #8,A0
+~ $61,00,00,1C                      ;BSR       $1C(PC)              L0003
+~ $67,0C                            ;BEQ.S     $C(PC)               L0001
+~ $30,7C,00,08                      ;MOVEA.W   #8,A0
+~ $61,00,00,12                      ;BSR       $12(PC)              L0003
+~ $66,04                            ;BNE.S     4(PC)                L0002
+~ $58,46                            ;ADDQ.W    #4,D6
+~ $58,46                      ;L0001:ADDQ.W    #4,D6
+~ $04,81,00,20,00,00          ;L0002:SUBI.L    #$00200000,D1
+~ $67,D2                            ;BEQ.S     -$2E(PC)             L0000
+~ $4E,75                            ;RTS
+~ $D1,C1                      ;L0003:ADDA.L    D1,A0
+~ $42,40                            ;CLR.W     D0
+~ $43,E8,01,F8                      ;LEA       $1F8(A0),A1
+~ $B0,58                      ;L0004:CMP.W     (A0)+,D0
+~ $66,08                            ;BNE.S     8(PC)                L0005
+~ $06,40,FA,54                      ;ADDI.W    #$FA54,D0
+~ $B3,C8                            ;CMPA.L    A0,A1
+~ $66,F4                            ;BNE.S     -$C(PC)              L0004
+~ $4E,75                      ;L0005:RTS
+
+_SWITCH .NATION
+_CASE .FRG: .STD_TABLE = E36420
+_CASE .USA: .STD_TABLE = E363F0
+_DEFAULT: _ERROR "Nation wird nicht unterstützt"
+_ENDSWITCH
+
+EA
+~ $11,FC,00,01,82,01                ;MOVE.B    #1,$FFFF8201.W
+~ $42,38,82,03                      ;CLR.B     $FFFF8203.W
+~ $1C,38,04,24                      ;MOVE.B    $0424.W,D6
+~ $11,C6,80,01                      ;MOVE.B    D6,$FFFF8001.W
+~ $2A,38,04,2E                      ;MOVE.L    $042E.W,D5
+~ $4D,FA,00,06                      ;LEA       6(PC),A6             L0001
+~ $60,00,0B,00                      ;BRA       $B00(PC)             L0014
+~ $67,00,01,5A                ;L0001:BEQ       $15A(PC)             L0011
+~ $42,46                            ;CLR.W     D6
+~ $11,FC,00,0A,80,01                ;MOVE.B    #$A,$FFFF8001.W
+~ $30,7C,00,08                      ;MOVEA.W   #8,A0
+~ $43,F9,00,20,00,08                ;LEA       $00200008,A1
+~ $42,40                            ;CLR.W     D0
+~ $30,C0                      ;L0002:MOVE.W    D0,(A0)+
+~ $32,C0                            ;MOVE.W    D0,(A1)+
+~ $06,40,FA,54                      ;ADDI.W    #$FA54,D0
+~ $B0,FC,02,00                      ;CMPA.W    #$0200,A0
+~ $66,F2                            ;BNE.S     -$E(PC)              L0002
+~ $11,FC,00,5A,82,0D                ;MOVE.B    #$5A,$FFFF820D      ;(#"Z")
+~ $4A,38,82,03                      ;TST.B     $FFFF8203.W
+~ $10,38,82,0D                      ;MOVE.B    $FFFF820D.W,D0
+~ $B0,3C,00,5A                      ;CMP.B     #$5A,D0             ;(#"Z")
+~ $66,16                            ;BNE.S     $16(PC)              L0003
+~ $42,38,82,0D                      ;CLR.B     $FFFF820D.W
+~ $4A,78,82,40                      ;TST.W     $FFFF8240.W
+~ $4A,38,82,0D                      ;TST.B     $FFFF820D.W
+~ $66,08                            ;BNE.S     8(PC)                L0003
+~ $2E,3C,00,04,00,00                ;MOVE.L    #$00040000,D7
+~ $60,06                            ;BRA.S     6(PC)                L0004
+~ $2E,3C,00,00,02,00          ;L0003:MOVE.L    #$0200,D7
+~ $22,3C,00,20,00,00          ;L0004:MOVE.L    #$00200000,D1
+~ $61,00,1F,28                      ;BSR       $1F28(PC)            L0015
+~ $11,C6,80,01                      ;MOVE.B    D6,$FFFF8001.W
+~ $4F,F9,00,00,80,00                ;LEA       $8000,A7
+~ $41,FA,00,34                      ;LEA       $34(PC),A0           L0008
+~ $21,C8,00,08                      ;MOVE.L    A0,8.W
+~ $36,3C,FB,55                      ;MOVE.W    #$FB55,D3
+~ $2E,3C,00,02,00,00                ;MOVE.L    #$00020000,D7
+~ $20,47                            ;MOVEA.L   D7,A0
+~ $22,48                      ;L0005:MOVEA.L   A0,A1
+~ $34,00                            ;MOVE.W    D0,D2
+~ $72,2A                            ;MOVEQ     #$2A,D1
+~ $33,02                      ;L0006:MOVE.W    D2,-(A1)
+~ $D4,43                            ;ADD.W     D3,D2
+~ $51,C9,FF,FA                      ;DBF       D1,-6(PC)            L0006
+~ $22,48                            ;MOVEA.L   A0,A1
+~ $72,2A                            ;MOVEQ     #$2A,D1
+~ $B0,61                      ;L0007:CMP.W     -(A1),D0
+~ $66,0C                            ;BNE.S     $C(PC)               L0008
+~ $42,51                            ;CLR.W     (A1)
+~ $D0,43                            ;ADD.W     D3,D0
+~ $51,C9,FF,F6                      ;DBF       D1,-$A(PC)           L0007
+~ $D1,C7                            ;ADDA.L    D7,A0
+~ $60,DE                            ;BRA.S     -$22(PC)             L0005
+~ $91,C7                      ;L0008:SUBA.L    D7,A0
+~ $2A,08                            ;MOVE.L    A0,D5
+~ $30,7C,04,00                      ;MOVEA.W   #$0400,A0
+~ $70,00                            ;MOVEQ     #0,D0
+~ $72,00                            ;MOVEQ     #0,D1
+~ $74,00                            ;MOVEQ     #0,D2
+~ $76,00                            ;MOVEQ     #0,D3
+~ $48,D0,00,0F                ;L0009:MOVEM.L   D0-D3,(A0)
+~ $41,E8,00,10                      ;LEA       $10(A0),A0
+~ $B1,C5                            ;CMPA.L    D5,A0
+~ $66,F4                            ;BNE.S     -$C(PC)              L0009
+~ $11,C6,04,24                      ;MOVE.B    D6,$0424.W
+~ $21,C5,04,2E                      ;MOVE.L    D5,$042E.W
+~ $21,FC,75,20,19,F3,04,20          ;MOVE.L    #$752019F3,$0420.W
+~ $21,FC,23,76,98,AA,04,3A          ;MOVE.L    #$237698AA,$043A.W
+~ $21,FC,55,55,AA,AA,05,1A          ;MOVE.L    #$5555AAAA,$051A.W
+~ $41,FA,00,0E                      ;LEA       $E(PC),A0            L000A
+~ $21,C8,00,08                      ;MOVE.L    A0,8.W
+~ $33,FC,00,00,FF,D0,00,E0          ;MOVE.W    #0,$FFD000E0.L
+~ $41,FA,00,56                ;L000A:LEA       $56(PC),A0           L000F
+~ $21,C8,00,08                      ;MOVE.L    A0,8.W
+~ $36,3C,FB,55                      ;MOVE.W    #$FB55,D3
+~ $70,00                            ;MOVEQ     #0,D0
+~ $2E,3C,00,02,00,00                ;MOVE.L    #$00020000,D7
+~ $20,7C,01,02,00,00                ;MOVEA.L   #$01020000,A0
+~ $24,48                            ;MOVEA.L   A0,A2
+~ $22,47                            ;MOVEA.L   D7,A1
+~ $22,11                            ;MOVE.L    (A1),D1
+~ $46,81                            ;NOT.L     D1
+~ $20,81                            ;MOVE.L    D1,(A0)
+~ $B2,91                            ;CMP.L     (A1),D1
+~ $66,0E                            ;BNE.S     $E(PC)               L000C
+~ $60,00,00,2E                      ;BRA       $2E(PC)              L000F
+~ $21,48,FF,FC                ;L000B:MOVE.L    A0,-4(A0)
+~ $B1,EA,FF,FC                      ;CMPA.L    -4(A2),A0
+~ $67,22                            ;BEQ.S     $22(PC)              L000F
+~ $22,48                      ;L000C:MOVEA.L   A0,A1
+~ $34,00                            ;MOVE.W    D0,D2
+~ $72,2A                            ;MOVEQ     #$2A,D1
+~ $33,02                      ;L000D:MOVE.W    D2,-(A1)
+~ $D4,43                            ;ADD.W     D3,D2
+~ $51,C9,FF,FA                      ;DBF       D1,-6(PC)            L000D
+~ $22,48                            ;MOVEA.L   A0,A1
+~ $72,2A                            ;MOVEQ     #$2A,D1
+~ $B0,61                      ;L000E:CMP.W     -(A1),D0
+~ $66,0C                            ;BNE.S     $C(PC)               L000F
+~ $42,51                            ;CLR.W     (A1)
+~ $D0,43                            ;ADD.W     D3,D0
+~ $51,C9,FF,F6                      ;DBF       D1,-$A(PC)           L000E
+~ $D1,C7                            ;ADDA.L    D7,A0
+~ $60,D4                            ;BRA.S     -$2C(PC)             L000B
+~ $91,C7                      ;L000F:SUBA.L    D7,A0
+~ $B1,FC,01,00,00,00                ;CMPA.L    #$01000000,A0
+~ $66,02                            ;BNE.S     2(PC)                L0010
+~ $91,C8                            ;SUBA.L    A0,A0
+~ $21,C8,05,A4                ;L0010:MOVE.L    A0,$5A4.W
+~ $21,FC,13,57,BD,13,05,A8          ;MOVE.L    #$1357BD13,$5A8.W
+~ $3E,7C,57,58                ;L0011:MOVEA.W   #$5758,A7
+~ $42,B8,04,F6                      ;CLR.L     $04F6.W
+~ $42,38,0A,12                      ;CLR.B     $0A12.W
+
+; Sprung zur DMASound-Init anpassen
+~ $61,00,.InitDMASound-~.W          ;BSR       $nnn(PC)
+
+~ $22,7C,00,00,E6,FC                ;MOVEA.L   #$E6FC,A1
+~ $30,7C,0A,14                      ;MOVEA.W   #$0A14,A0
+~ $70,00                            ;MOVEQ     #0,D0
+~ $30,C0                      ;L0012:MOVE.W    D0,(A0)+
+~ $B3,C8                            ;CMPA.L    A0,A1
+~ $66,FA                            ;BNE.S     -6(PC)               L0012
+~ $41,F8,07,00                      ;LEA       $0700.W,A0
+~ $43,F9,.STD_TABLE.L               ;LEA       .STD_TABLE,A1
+~ $70,3F                            ;MOVEQ     #$3F,D0
+~ $20,D9                      ;L0013:MOVE.L    (A1)+,(A0)+
+~ $51,C8,FF,FC                      ;DBF       D0,-4(PC)            L0013
+
+;*******************************************************************************
+;* Ende der PAK-Patches
+;*******************************************************************************
+
