@@ -14,11 +14,11 @@ recode UTF-8..AtariST *.TXT *.FIL
 
 ## Versionen
 
-* TOSPATCH.TTP V2.9.8 vom 11.7.1999
-* TosPatch für TOS 1.04 2.1 beta
-* TosPatch für TOS 2.06 4.0 beta
-* TosPatch für TOS 3.06 2.0
-* TosPatch für TOS 4.04 2.0 beta 2
+* [TOSPATCH.TTP](bin/TOSPATCH.TTP) 2.9.8 vom 11.7.1999
+* [TosPatch für TOS 1.04](tos104) 2.1 beta
+* [TosPatch für TOS 2.06](tos206) 4.0 beta
+* [TosPatch für TOS 3.06](tos306) 2.0
+* [TosPatch für TOS 4.04](tos404) 2.0 beta 2
 
 ## Dokumentation
 
